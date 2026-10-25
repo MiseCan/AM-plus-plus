@@ -3,10 +3,8 @@ package dev.amenhancer.module.hook
 /** Reference595581b layout/visibility contract. */
 object FragmentTabletGlassPolicy {
     /**
-     * Native Compose initially reports a square material containing only the drawer button.
-     * Its menu model can already be ready at this point. Hiding the native ComposeView then
-     * suspends its layout updates and leaves glass stuck at that startup width until rotation.
-     * Keep native navigation visible until its material expands beyond the drawer-only circle.
+     * A complete menu can precede the native material expanding beyond its drawer-only square.
+     * Keep native navigation visible until the expanded material and glass content are laid out.
      */
     fun navigationLayoutReady(width: Int, height: Int, contentWidth: Int, contentHeight: Int): Boolean =
         height > 1 && width > height && contentWidth == width && contentHeight in 2..height

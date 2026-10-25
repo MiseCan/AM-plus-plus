@@ -158,11 +158,8 @@ internal class FragmentTabletGlassSession(
             }
             if (slide <= .001f) refreshNavigation()
             refreshCollapsedMini(min)
-            val navOpacity = navigationOpacity(nav)
             val transition = FragmentPlayerSurfaceMotion.tabletFrame(slide)
             val miniOpacity = if (miniWasVisible) transition.alpha else 0f
-            val visible = active && (navOpacity > 0.001f || miniOpacity > 0.001f)
-            val captureChanged = backdrop?.setCaptureEnabled(visible) == true
             val miniVisible = miniOpacity > .001f
             if (min.glass.visibility != if (miniVisible) View.VISIBLE else View.GONE) {
                 min.glass.visibility = if (miniVisible) View.VISIBLE else View.GONE
@@ -171,7 +168,13 @@ internal class FragmentTabletGlassSession(
             // its bounds, otherwise readiness can never recover without rebuilding the session.
             val layoutChanged = position(nav) or
                 (if (miniVisible || !replacing) positionMini(min) else false)
-            if (!replacing && navigationReady() && navigationLaidOut() && backdrop?.ready == true && nav.anchor.width > 0 && !layoutChanged) {
+            // Positioning can request layout; native ownership, glass and capture must agree
+            // on readiness after those writes, including frames that only move the anchor.
+            val navigationStable = navigationReady() && navigationLaidOut()
+            val navOpacity = if (navigationStable) native.navigationOpacity() * transition.alpha else 0f
+            val visible = active && (navOpacity > 0.001f || miniOpacity > 0.001f)
+            val captureChanged = backdrop?.setCaptureEnabled(visible) == true
+            if (!replacing && navigationStable && backdrop?.ready == true && !layoutChanged) {
                 if (!activationPending) {
                     activationPending = true
                     root.post {
@@ -182,7 +185,7 @@ internal class FragmentTabletGlassSession(
             }
             if (replacing) {
                 stripMiniBackground()
-                syncNativeNavigation()
+                syncNativeNavigation(navigationStable)
                 overlay?.z = maxOf(nav.anchor.z, nav.content.z)
                 updatePlayerLayers(transition)
                 glassExpansion = transition.expansion
@@ -376,8 +379,8 @@ internal class FragmentTabletGlassSession(
         return selectedId
     }
 
-    private fun syncNativeNavigation() {
-        native.replaceNavigation(navigationReady() && navigationLaidOut())
+    private fun syncNativeNavigation(ready: Boolean = navigationReady() && navigationLaidOut()) {
+        native.replaceNavigation(ready)
     }
 
     private fun dispatchNavigation(event: MotionEvent): Boolean {
@@ -412,9 +415,6 @@ internal class FragmentTabletGlassSession(
         else native.transformMini(1f, 1f, 0f, 0f)
     }
     private fun opacity(view: View): Float = native.opacity(view)
-    private fun navigationOpacity(surface: Surface): Float =
-        if (surface.anchor.width > 0 && surface.anchor.height > 0 && navigationReady() && navigationLaidOut())
-            native.navigationOpacity() * FragmentPlayerSurfaceMotion.tabletFrame(slide).alpha else 0f
 
     override fun observeMiniTouch(event: MotionEvent): Boolean? {
         if (!replacing) return null
