@@ -167,7 +167,9 @@ internal class FragmentTabletGlassSession(
             if (min.glass.visibility != if (miniVisible) View.VISIBLE else View.GONE) {
                 min.glass.visibility = if (miniVisible) View.VISIBLE else View.GONE
             }
-            val layoutChanged = (if (navOpacity > .001f || !replacing) position(nav) else false) or
+            // A resized anchor makes navigation temporarily unready/transparent. Still follow
+            // its bounds, otherwise readiness can never recover without rebuilding the session.
+            val layoutChanged = position(nav) or
                 (if (miniVisible || !replacing) positionMini(min) else false)
             if (!replacing && navigationReady() && navigationLaidOut() && backdrop?.ready == true && nav.anchor.width > 0 && !layoutChanged) {
                 if (!activationPending) {
@@ -360,7 +362,10 @@ internal class FragmentTabletGlassSession(
     private fun navigationReady(): Boolean = tabs.size > 1 && tabs.any { it.id == selectedId }
 
     private fun navigationLaidOut(): Boolean = navigation?.glass?.let {
-        FragmentTabletGlassPolicy.navigationLayoutReady(it.width, it.height, navContentWidth, navContentHeight)
+        val anchor = checkNotNull(navigation).anchor
+        !it.isLayoutRequested && !anchor.isLayoutRequested &&
+            it.width == anchor.width && it.height == anchor.height &&
+            FragmentTabletGlassPolicy.navigationLayoutReady(it.width, it.height, navContentWidth, navContentHeight)
     } == true
 
     private fun selectTab(id: Int): Int {
